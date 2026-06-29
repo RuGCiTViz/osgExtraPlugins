@@ -1,0 +1,51 @@
+cmake_minimum_required(VERSION 2.6)
+
+SET(PROJECT_NAME osgExtraPlugins)
+
+PROJECT(${PROJECT_NAME})
+
+set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/CMakeModules;${CMAKE_MODULE_PATH}")
+INCLUDE(OsgMacroUtils)
+
+FIND_PACKAGE(OpenThreads)
+FIND_PACKAGE(osg)
+FIND_PACKAGE(osgDB)
+#FIND_PACKAGE(osgUtil)
+#FIND_PACKAGE(osgGA)
+#FIND_PACKAGE(osgViewer)
+SET(CMAKE_DEBUG_POSTFIX  "d")
+set(OPENSCENEGRAPH_LIBRARIES optimized;${OSG_LIBRARY_RELEASE};debug;${OSG_LIBRARY_DEBUG};optimized;${OSGDB_LIBRARY_RELEASE};debug;${OSGDB_LIBRARY_DEBUG} )
+#find_package(OpenSceneGraph 3.0.0 REQUIRED osgAnimation osgDB osgFX osgGA osgParticle osgShadow osgSim osgTerrain osgText osgUtil osgViewer osgVolume)
+
+include_directories(${OPENTHREADS_INCLUDE_DIR} ${OSG_INCLUDE_DIR} )
+
+################################################################################
+# Installation stuff
+SET(OUTPUT_BINDIR ${PROJECT_BINARY_DIR}/bin/ CACHE PATH "where to put the executables")
+MAKE_DIRECTORY(${OUTPUT_BINDIR})
+
+SET(OUTPUT_LIBDIR ${PROJECT_BINARY_DIR}/lib/ CACHE PATH "where to put the libraries")
+MAKE_DIRECTORY(${OUTPUT_LIBDIR})
+
+SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${OUTPUT_LIBDIR})
+SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${OUTPUT_BINDIR})
+IF(WIN32)
+    SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${OUTPUT_BINDIR})
+ELSE(WIN32)
+    SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${OUTPUT_LIBDIR})
+ENDIF(WIN32)
+
+FOREACH(CONF ${CMAKE_CONFIGURATION_TYPES})        # For each configuration (Debug, Release, MinSizeRel... and/or anything the user chooses)
+    STRING(TOUPPER "${CONF}" CONF)                # Go uppercase (DEBUG, RELEASE...)
+    SET("CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONF}" "${OUTPUT_LIBDIR}")
+    SET("CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONF}" "${OUTPUT_BINDIR}")
+    IF(WIN32)
+        SET("CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONF}" "${OUTPUT_BINDIR}")
+    ELSE()
+        SET("CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONF}" "${OUTPUT_LIBDIR}")
+    ENDIF()
+ENDFOREACH()
+
+ADD_SUBDIRECTORY(plugins)
+
+set_property (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT osgdb_qcrop)

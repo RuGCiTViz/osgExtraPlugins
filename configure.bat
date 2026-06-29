@@ -7,40 +7,49 @@ IF NOT DEFINED PROJECT (
   )
   goto :eof
 )
-SETLOCAL ENABLEEXTENSIONS
+SETLOCAL ENABLEDELAYEDEXPANSION
 
 echo PROJECT=%PROJECT%
-
-call ..\osgversion.bat
+SET DIRUP=..\
+if exist %DIRUP%osgversion.bat (
+  call %DIRUP%osgversion.bat
+) else (
+  SET OSG_VERSION_DOTTED=3.6.5
+  set OSG_USE_STABLE=36L
+  pushd %~dp0\..\..
+  SET OSG_OP_OT=!CD!
+  popd
+  SET OPENTHREADS_SOVERSION=21
+  SET OPENSCENEGRAPH_SOVERSION=162
+)
 IF NOT DEFINED MSVCV SET MSVCV=17_14
 IF NOT DEFINED TP SET TP=x64
 
 
-REM osgdev NEEDS TO SET
-
-REM OSG_BUILD=E:\osg\36\laurens\vc17_14x64
-REM OSG_OP_OT=E:\osg\36\laurens
-REM OSG_ROOT=E:\osg\36\laurens\OpenSceneGraph
-
+if not exist ..\..\%DIRUP%osgdev.bat (
+  SET OSG_BUILD=!OSG_OP_OT!\vc%MSVCV%%TP%
+  SET OSG_ROOT=!OSG_OP_OT!\OpenSceneGraph
+  SET CMAKE_EXE="E:\osg\3rdparty\repo\tools\CMake\bin\cmake.exe"
+  SET CMAKE_GEN="Visual Studio 17 2022" -A x64
+  SET CMAKE_GUI="E:\osg\3rdparty\repo\tools\CMake\bin\cmake-gui.exe"
+  SET DEVENV="C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\devenv.exe"
 REM MAYBE
-rem OSG_DIR=E:\osg\36\laurens\vc17_14x64
-
-call ..\..\..\osgdev.bat
+  set OSG_DIR=E:\osg\36\laurens\vc17_14x64
+) else (
+  call ..\..\%DIRUP%osgdev.bat
+)
 
 REM if exist src\icons\revision.bat CALL src\icons\revision.bat
 REM cd /D "%~dp0"
 
-echo on
-
-REM set PREDEV=-DCMAKE_CONFIGURATION_TYPES:STRING=Debug;Release
-rem set PREDEV=-DCMAKE_CONFIGURATION_TYPES:STRING=Debug;Release
-set PREDEV=-DCMAKE_CONFIGURATION_TYPES:STRING=Debug;RelWithDebInfo
-echo set PREDEV=%PREDEV% -C "%~dp0initial-cache.cmake"
-set PREDEV=%PREDEV% -C "%~dp0initial-cache.cmake"
+echo set PREDEV=-C "%~dp0initial-cache.cmake"
+set PREDEV=-C "%~dp0initial-cache.cmake"
 
 REM for local build
 REM 
 SET PROJ_BUILD_FOLDER=%CD%_vc%MSVCV%%TP%
+
+GOTO :KEEP_BUILD
 
 rem DELETE OUTPUT FOLDER!
 IF EXIST %PROJ_BUILD_FOLDER% (
@@ -52,20 +61,24 @@ pause
 GOTO :EOF
 )
 
-
+:KEEP_BUILD
 IF EXIST %PROJ_BUILD_FOLDER% (
   cd /D %PROJ_BUILD_FOLDER%
   GOTO MAKEBAT
-) else (
+)
+
 mkdir %PROJ_BUILD_FOLDER%
 cd /D %PROJ_BUILD_FOLDER%
 
 REM type %~dp0\iCMakeCache.txt >> CMakeCache.txt
 REM expand env variables:
-echo SET PROJ_SOURCE_FOLDER=%~dp0|tr \\ />unixStylepwd.bat
+rem echo SET PROJ_SOURCE_FOLDER=%~dp0|tr \\ />unixStylepwd.bat
+PUSHD %~dp0
+echo SET PROJ_SOURCE_FOLDER=%CD:\=/%/>%PROJ_BUILD_FOLDER%\unixStylepwd.bat
+POPD
 CALL unixStylepwd.bat
 del unixStylepwd.bat
-echo SET UOSG_OP_OT=%OSG_OP_OT%|tr \\ />unixStylepwd.bat
+echo SET UOSG_OP_OT=%OSG_OP_OT:\=/%>unixStylepwd.bat
 CALL unixStylepwd.bat
 del unixStylepwd.bat
 
@@ -85,7 +98,6 @@ if "%TP%"=="Win32" (
 	)
 )
 
-)
 rem 
 GOTO SKIPGUI
 REM now start the cmake gui 
@@ -121,7 +133,7 @@ if NOT exist %PROJECT%Build.bat (
 )
 
 cd /D "%~dp0"
-ECHO %CD%_vc%MSVCV%%TP%\vc%PROJECT%.bat ^&^& del "%%~0" > start_lastconfigured.bat
+ECHO %CD%_vc%MSVCV%%TP%\vc%PROJECT%.bat ^& del "%%~0" > start_lastconfigured.bat
 ENDLOCAL
 start_lastconfigured.bat
 :END

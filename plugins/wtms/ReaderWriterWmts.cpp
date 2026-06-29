@@ -383,7 +383,8 @@ public:
 		std::string url2; // luaFile ONLY; arial texture
 		subFileName.resize(dot);
 
-		std::string::size_type slash = fileName.find_last_of('/');
+		std::string::size_type qm = subFileName.find_last_of('?');
+		std::string::size_type slash = fileName.substr(0,qm).find_last_of('/');
 		if (slash == std::string::npos) return ReadResult::FILE_NOT_HANDLED;
 		yTile = atoi(subFileName.substr(slash+1).c_str());
 		bool v1 = true;
@@ -391,7 +392,7 @@ public:
 			if (subFileName.substr(slash + 1, 1) == "v") v1 = false;
 		}
 		if (v1) {
-			std::string::size_type qm = subFileName.find_last_of('?');
+			
 			if (qm != std::string::npos) {
 				//for shape https://api.ellipsis-drive.com/v3/path/22f5740b-1276-42e0-9d2d-dd2a9745e928/raster/timestamp/c936131a-2c4f-44ce-b321-a085c6c0ce3b/
 				//          tile/13/5048/2870?style=4202a0e1-781d-4ce9-b2d7-ff9a99fe795c&epsg=28992.png.13.wmts
@@ -500,14 +501,7 @@ public:
 			if (parent.valid() && parent->getNumChildren()>0) {
 				const osg::StateSet *ps = parent->getChild(0)->getStateSet();
 				pss = const_cast<osg::StateSet *>(ps);
-#if 0
-				osg::Geometry* geom = dynamic_cast<osg::Geometry*>(parent->getChild(0));
-				if (geom) {
-					osg::BoundingBox bound = geom->getInitialBound();
-					zMin = bound.zMin() * 0.5f;
-					zMax = bound.zMax() * 0.5f;
-				}
-				//bsphere = parent->getChild(0)->getBound();
+#if 1
 #else
 				osg::Node* geom = parent->getChild(0);
 				if (geom) {

@@ -2,7 +2,7 @@
 some helper (pseudo-) fileformat plugins for OpenSceneGraph
 # Building:
 generally cmake should be able to configure the project if OpenSceneGraph 3.6.5 is found.
-the configure.bat is tailord to my dev setup, and is not expected to work on your system.
+the configure.bat is tailored to my dev setup, and is not expected to work on your system.
 # plugins:
 
 `arg      provides arguments to .lua scripts`  
@@ -13,6 +13,15 @@ the configure.bat is tailord to my dev setup, and is not expected to work on you
 `ptfilter point cloud box filter`  
 `qcrop    pseudo loader selectin half or quarter of an image`  
 `wtms     pseudo loader for web tile map server`  
+  
+`brotli   brotli compressor plugin`
+`cfcells  cyclomedia cfcells (2015)`
+`Inventor slightly modified iv plugin (coin linkage)`
+`normalflip pseudo-loader: invert normals`
+`stdin    allow reading files from stdin`
+  
+#plugins2
+`kml      very crude unfinished plugin`
 
 #Examples:
 ```

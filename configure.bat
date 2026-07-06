@@ -108,7 +108,7 @@ echo %CMAKE_GUI% .
 :SKIPGUI
 REM copy %~dp0\viewer.vcproj.HPCV6.laurens.user src\
 for /r plugins %%i in (*.vcxproj) do (
-  if exist "%~dp0\vs_debugSettings\%%~nxi.user" copy "%~dp0\vs_debugSettings\%%~nxi.user" "%%i.user"
+  if exist "%~dp0\vs_debugSettings\%%~nxi.user" copy "%~dp0\vs_debugSettings\%%~nxi.user" "%%i.user" & echo "%%i.user"
 )
 
 
@@ -135,5 +135,5 @@ if NOT exist %PROJECT%Build.bat (
 cd /D "%~dp0"
 ECHO %CD%_vc%MSVCV%%TP%\vc%PROJECT%.bat ^& del "%%~0" > start_lastconfigured.bat
 ENDLOCAL
-start_lastconfigured.bat
+if not exist start_lastconfigured.not start_lastconfigured.bat
 :END

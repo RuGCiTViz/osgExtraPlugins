@@ -1,0 +1,22 @@
+cfcells:
+in september of 2015 I got the city of Groningen in 3d from cyclomedia (cyclomedia.com)
+the textured model was described in .cfcell files, and apperently I could find a file format description somewere.
+textures are in .crn format.
+
+kml:
+crude first attempt to parse a kml file. Seems abandoned (May 2019) after sucessfully reading 1 file. The osgEarth plugin is probably way better.
+
+brotli:
+plugin for google's brotly compressor, tested on windows.
+
+1,528,618 TestFile.ive
+  684,808 osgconv -O compressed TestFile.ive TestFile_zlib.ive
+1,543,361 osgconv TestFile.ive TestFile.osgb
+  688,647 osgconv -O Compressor=zlib TestFile.ive TestFile_zlib.osgb
+  508,885 osgconv -O Compressor=brotli TestFile.ive TestFile_brotli.osgb
+
+normalflip
+pseudoloader inverting (=flip,negate) all normal vectors on loaded geometry
+
+stdin
+pseudoloader reading input from stdin

@@ -22,10 +22,11 @@ include_directories(${OPENTHREADS_INCLUDE_DIR} ${OSG_INCLUDE_DIR} )
 ################################################################################
 # Installation stuff
 SET(OUTPUT_BINDIR ${PROJECT_BINARY_DIR}/bin/ CACHE PATH "where to put the executables")
-MAKE_DIRECTORY(${OUTPUT_BINDIR})
+#cmake does not expand vc17_14$(PlatformName) maybe use CMAKE_VS_PLATFORM_NAME?
+#MAKE_DIRECTORY(${OUTPUT_BINDIR})
 
 SET(OUTPUT_LIBDIR ${PROJECT_BINARY_DIR}/lib/ CACHE PATH "where to put the libraries")
-MAKE_DIRECTORY(${OUTPUT_LIBDIR})
+#MAKE_DIRECTORY(${OUTPUT_LIBDIR})
 
 SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${OUTPUT_LIBDIR})
 SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${OUTPUT_BINDIR})

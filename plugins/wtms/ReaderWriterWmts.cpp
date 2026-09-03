@@ -205,32 +205,9 @@ public:
 		}
 		if (heightMap) geom->addPrimitiveSet(drwelemp.get());
 		else geom->addPrimitiveSet(drwelemt.get());
-#if 1
-		geom->setStateSet(ss);
-#if 0
-		if (zMax > -zMin) zMin = -zMax;
-		else zMax = -zMin;
-		osg::BoundingBox bound(xMin, yMin, zMin, xMax, yMax, zMax);
-		geom->setInitialBound(bound);
-		osg::Node* gNode = geom->asNode();
-		osg::BoundingSphere sbound(osg::Vec3(0.5f * (xMin + xMax), 0.5f * (yMin + yMax), 0.5f * (zMin + zMax)), 0.5f * sqrtf(((xMax - xMin) * (xMax - xMin)) + ((yMax - yMin) * (yMax - yMin)) + ((zMax - zMin) * (zMax - zMin))));
-		//osg::BoundingBox bound(xMin, yMin, zMin, xMax, yMax, zMax);
-		gNode->setInitialBound(sbound);
-		gNode->computeBound();
-		osg::BoundingSphere nBound = gNode->getBound();
-		OSG_DEBUG << nBound.radius() << std::endl;
-#endif
 
+		geom->setStateSet(ss);
 		return geom;
-#else
-		osg::Geode *geo = new osg::Geode;
-		geo->setStateSet(ss);
-		geo->addChild(geom);
-		osg::BoundingSphere bound(osg::Vec3(0.5f * (xMin + xMax), 0.5f * (yMin + yMax), 0.5f * (zMin + zMax)), 0.5f * sqrtf(((xMax - xMin) * (xMax - xMin)) + ((yMax - yMin) * (yMax - yMin)) + ((zMax - zMin) * (zMax - zMin))));
-		//osg::BoundingBox bound(xMin, yMin, zMin, xMax, yMax, zMax);
-		geom->setInitialBound(bound);
-		return geo;
-#endif
 	}
 
 	osg::Node * createPagedLOD(bool heightMap, osg::StateSet *ss, bool v1, const std::string& urlBase, const std::string& urlTail, int level, int xTile, int yTile, float xMin, float xMax, float yMin, float yMax, float zMin, float zMax, float uMin, float uMax, float vMin, float vMax) const {
@@ -331,12 +308,12 @@ public:
 					}
 				}
 				else {//GL_RGBA
-					unsigned int RGBcolor;
+					unsigned int RGBcolor = 0;
 					for (int p = 0; p * sizeof(unsigned int) < img->getTotalSizeInBytes(); ++p) {
 						unsigned int RGBApixel = data[p];
 						unsigned int RGBpixel = data[p] & 0x00ffffff; //ABGR
 						if ((RGBApixel & 0xff000000) != 0) {//not transparent
-							if (p != 0) {
+							if (RGBcolor != 0) {
 								if (RGBpixel != RGBcolor) {
 									pureWhite = false;//not solid color
 									//break;
@@ -448,8 +425,11 @@ public:
 		if (luaFile) {
 			std::stringstream argString;
 			argString << level << " " << xTile << " " << yTile;
-			url = subFileName.substr(0, subFileName.length() - 1) + "." + argString.str() + " 0.arg";
-			url2 = subFileName.substr(0, subFileName.length() - 1) + "." + argString.str() + " 1.arg";
+			std::string luaFileName = subFileName.substr(0, subFileName.length() - 1);
+			url = luaFileName + "." + argString.str() + " 0.arg";
+			url2 = luaFileName + "." + argString.str() + " 1.arg";
+			std::string absFileName = osgDB::findDataFile(luaFileName, options);
+			subFileName = absFileName + "/";//use absolute path for pagedLOD's
 		}
 		unsigned int nextXTile = xTile * 2;
 		unsigned int nextYTile = yTile * 2;
@@ -457,13 +437,13 @@ public:
 
 		osg::MatrixTransform *mt = NULL;
 #if 1
-		//matrixTransform for better numeric stability in the z buffer:
+		//matrixTransform on every 4th level for better numeric stability in the z buffer:
 		if ((level > 0) && ((level & 3) == 0)) {
 			double s, t1, t2;
 			s = 1.0 / (1 << 4);//scale 1/16
 			t1 = (xTile & 0xF) * s;
 			t2 = (yTile & 0xF) * s;
-			osg::Matrix mat(s, 0, 0, 0,0, s, 0, 0, 0, 0, 1, 0, t1, -t2, 0, 1);
+			osg::Matrix mat(s, 0, 0, 0, 0, s, 0, 0, 0, 0, 1, 0, t1, -t2, 0, 1);
 			mt = new osg::MatrixTransform(mat);
 		}
 		level &= 3;
@@ -491,7 +471,7 @@ public:
 
 		osg::ref_ptr<osg::Image> img = getImage(url, options);
 
-		osg::StateSet *pss = NULL;
+		osg::ref_ptr<osg::StateSet> pss = NULL;
 		//osg::BoundingSphere bsphere;
 		float zMax = 0.0f;
 		float zMin = 0.0f;
@@ -501,8 +481,7 @@ public:
 			if (parent.valid() && parent->getNumChildren()>0) {
 				const osg::StateSet *ps = parent->getChild(0)->getStateSet();
 				pss = const_cast<osg::StateSet *>(ps);
-#if 1
-#else
+#if 0
 				osg::Node* geom = parent->getChild(0);
 				if (geom) {
 					osg::BoundingSphere bound = geom->getBound();
@@ -514,54 +493,14 @@ public:
 		}
 		unsigned int RGBmax = 0;
 		unsigned int RGBmin = ~0;
-#if 1
 		bool pureWhite = imageMinMax(img, heightMap, RGBmax, RGBmin);
-#else
-		if (img.valid()) {//check for white images
-			bool pureWhite = img->isDataContiguous();
-			//pureWhite = false;
-			if (pureWhite) pureWhite = (((img->getPixelFormat() == GL_RGBA) || (img->getPixelFormat() == GL_RGB)) && (img->s() > 3));
-			if (pureWhite) {
-				const unsigned int *data = static_cast<const unsigned int*>(img->getDataPointer());
-				if (img->getPixelFormat() == GL_RGB) {
-					for (int p = 0; p * sizeof(unsigned int) < img->getTotalSizeInBytes(); ++p) {
-						if (data[p] != 0xffffffff) {
-							pureWhite = false;
-							break;
-						}
-					}
-				} else {//GL_RGBA
-					unsigned int RGBcolor;
-					for (int p = 0; p * sizeof(unsigned int) < img->getTotalSizeInBytes(); ++p) {
-						unsigned int RGBApixel = data[p];
-						unsigned int RGBpixel = data[p] & 0x00ffffff; //ABGR
-						if ((RGBApixel & 0xff000000) != 0) {//not transparent
-							if (p != 0) {
-								if (RGBpixel != RGBcolor) {
-									pureWhite = false;//not solid color
-									//break;
-									if (!heightMap)	break;
-									unsigned int RGBheight = RGBpixel;
-									osg::swapBytes4((char*)&RGBheight);
-									if (RGBheight > RGBmax) RGBmax = RGBheight;//RGB0
-									if (RGBheight < RGBmin) RGBmin = RGBheight;
-								}
-							} else {
-								RGBcolor = RGBpixel;
-							}
-						}
-					}
-				}
-			}
-			if (pss && pureWhite) img = NULL;
-		}
-#endif
+
 		osg::StateSet* ss = new osg::StateSet();
 		if (url2.length()) {//second texture url for luafile
 			osg::ref_ptr<osg::Image> img2 = getImage(url2, options);
 			//todo check for white image...
 			if (img2.valid()) {
-				if (!img.valid() && pss) {//no valid height image
+				if (!img.valid() && pss.valid()) {//no valid height image
 					osg::Texture* tex = static_cast<osg::Texture*>(pss->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
 					osg::Image* pimg = tex ? tex->getImage(0) : NULL;
 					if (!pimg && options) {
@@ -605,12 +544,10 @@ public:
 #endif
 			}
 		}
-#if 1
 		if (heightMap && img.valid() && (RGBmax > RGBmin)) {
 			zMax = (0.1f * (RGBmax >> 8)) - 10000.0f;
 			zMin = (0.1f * (RGBmin >> 8)) - 10000.0f;
 		}
-#endif
 
 		if (!img.valid()) {//no valid image, use parent image
 			if ((nextYTile & 2) == 2) vMax = vMid;
@@ -618,14 +555,14 @@ public:
 			if ((nextXTile & 2) == 2) uMin = uMid;
 			else uMax = uMid;
 
-			osg::Node *tile = createTile(heightMap, pss, xMin, xMax, yMin, yMax, zMin, zMax, uMin, uMax, vMin, vMax);
+			osg::Node *tile = createTile(heightMap, pss.get(), xMin, xMax, yMin, yMax, zMin, zMax, uMin, uMax, vMin, vMax);
 			if (mt) {
 				mt->addChild(tile);
 				return mt;
 			}
 			return tile;
 		}
-		bool toplevel = NULL != pss;
+		bool toplevel = NULL != pss.get();
 		if (heightMap && toplevel) {
 			osg::PatchParameter* pp = new osg::PatchParameter(4);
 			ss->setAttributeAndModes(pp);
@@ -641,7 +578,8 @@ public:
 #if 0
 			osg::Node *tile = createTile(heightMap, ss, xMin, xMax, yMin, yMax, zMin, zMax, uMin, uMax, vMin, vMax);
 #else
-
+			// increase final heightMap level to 2x2 tile
+			// should(!) not help - for testing only...
 			osg::Group* tile = new osg::Group;
 			tile->setStateSet(ss);
 			ss = NULL;
@@ -669,6 +607,7 @@ public:
 			}
 #endif
 #if NEARPIX
+			//debug option - don't interpolate
 			tex->setFilter(osg::Texture::MIN_FILTER, osg::Texture::NEAREST);//osg::Texture::LINEAR_MIPMAP_LINEAR
 			tex->setFilter(osg::Texture::MAG_FILTER, osg::Texture::NEAREST);
 #endif

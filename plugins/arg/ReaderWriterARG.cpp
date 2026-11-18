@@ -53,33 +53,14 @@ static bool getFilenameAndParams(const std::string& input, std::string& filename
     params = input.substr(pos+1, std::string::npos );
     if( params.empty() )
     {
-#if 0
-        OSG_WARN << "Missing parameters for " EXTENSION_NAME " pseudo-loader" << std::endl;
-        return false;
-#else
         filename = input.substr(0, pos);
         return true;
-#endif
     }
-#if 1
 	// clear the params sting of outher brackets.
 	char c = params[params.size()-1];
 	if (c == ']' || c == ')') {
 		params = params.substr(1, params.size() - 2);
 	}
-#else
-    // clear the params sting of any brackets.
-    std::string::size_type params_pos = params.size();
-    for(; params_pos>0; )
-    {
-        --params_pos;
-        char c = params[params_pos];
-        if (c==']' || c=='[' || c==')' || c=='(')
-        {
-            params.erase(params_pos,1);
-        }
-    }
-#endif
     // strip the "params extension", which must leave a sub-filename.
     filename = input.substr(0, pos );
 
@@ -109,7 +90,6 @@ public:
     }
 
     virtual const char* className() const { return "arguments pseudo-loader"; }
-#if 1
     bool parse(const std::string& fileName, std::string& subFileName, osgDB::ReaderWriter::Options* local_opt) const {
         std::string ext = osgDB::getLowerCaseFileExtension(fileName);
         if (!acceptsExtension(ext))
@@ -161,86 +141,6 @@ public:
         if (!parse(fileName, subFileName, local_opt.get())) return ReadResult::FILE_NOT_HANDLED;
         return osgDB::readRefObjectFile(subFileName, local_opt.get());
     }
-
-#else
-    virtual ReadResult readImage(const std::string& fileName, const osgDB::ReaderWriter::Options* options) const
-    {
-        std::string ext = osgDB::getLowerCaseFileExtension(fileName);
-        if( !acceptsExtension(ext) )
-            return ReadResult::FILE_NOT_HANDLED;
-
-        OSG_INFO << "ReaderWriterARG( \"" << fileName << "\" )" << std::endl;
-
-        // strip the pseudo-loader extension
-        std::string tmpName = osgDB::getNameLessExtension( fileName );
-
-        if (tmpName.empty())
-            return ReadResult::FILE_NOT_HANDLED;
-
-        std::string subFileName, params;
-        if (!getFilenameAndParams(tmpName, subFileName, params))
-        {
-            return ReadResult::FILE_NOT_HANDLED;
-        }
-
-		if (subFileName.empty())
-		{
-			OSG_WARN << "Missing subfilename for " EXTENSION_NAME " pseudo-loader" << std::endl;
-			return ReadResult::FILE_NOT_HANDLED;
-		}
-		if (params.empty())
-		{
-			OSG_WARN << "Missing params for " EXTENSION_NAME " pseudo-loader" << std::endl;
-			return ReadResult::FILE_NOT_HANDLED;
-		}
-
-		osg::ref_ptr<osgDB::ReaderWriter::Options> local_opt = options ? new osgDB::ReaderWriter::Options(*options) : new osgDB::ReaderWriter::Options();
-		local_opt->setPluginStringData("arguments", params);
-		local_opt->setObjectCacheHint(osgDB::ReaderWriter::Options::CACHE_NONE);//don't add this to the cache!
-		// recursively load the subfile.
-		return osgDB::readRefImageFile( subFileName, local_opt.get() );
-    }
-    	virtual ReadResult readNode(const std::string& fileName, const osgDB::ReaderWriter::Options* options) const {
-		std::string ext = osgDB::getLowerCaseFileExtension(fileName);
-		if (!acceptsExtension(ext))
-			return ReadResult::FILE_NOT_HANDLED;
-
-		OSG_INFO << "ReaderWriterARG( \"" << fileName << "\" )" << std::endl;
-
-		// strip the pseudo-loader extension
-		std::string tmpName = osgDB::getNameLessExtension(fileName);
-
-		if (tmpName.empty())
-			return ReadResult::FILE_NOT_HANDLED;
-
-		std::string subFileName, params;
-		if (!getFilenameAndParams(tmpName, subFileName, params))
-		{
-			return ReadResult::FILE_NOT_HANDLED;
-		}
-
-		if (subFileName.empty())
-		{
-			OSG_WARN << "Missing subfilename for " EXTENSION_NAME " pseudo-loader" << std::endl;
-			return ReadResult::FILE_NOT_HANDLED;
-		}
-		if (params.empty())
-		{
-			OSG_WARN << "Missing params for " EXTENSION_NAME " pseudo-loader" << std::endl;
-			return ReadResult::FILE_NOT_HANDLED;
-		}
-
-		osg::ref_ptr<osgDB::ReaderWriter::Options> local_opt = options ? new osgDB::ReaderWriter::Options(*options) : new osgDB::ReaderWriter::Options();
-		local_opt->setPluginStringData("arguments", params);
-		local_opt->setObjectCacheHint(osgDB::ReaderWriter::Options::CACHE_NONE);//don't add this to the cache!
-		// recursively load the subfile.
-		return osgDB::readRefNodeFile(subFileName, local_opt.get());
-	}
-	virtual ReadResult readObject(const std::string& fileName, const osgDB::ReaderWriter::Options* options) const {
-		return readNode(fileName, options);
-	}
-#endif
-
 };
 
 

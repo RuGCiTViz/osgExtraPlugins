@@ -21,7 +21,10 @@
 #include <osg/ProxyNode>
 #include <osg/MatrixTransform>
 #include <iomanip>
-
+#define DRAWCENTERSPHERES 0
+#if DRAWCENTERSPHERES
+#include <osg/ShapeDrawable>
+#endif
 #ifndef WIN32
 #include <unistd.h> //for g++ 4.7
 #endif
@@ -164,33 +167,61 @@ public:
 		osg::Geometry *geom = new osg::Geometry;
 		osg::Vec3Array* v = new osg::Vec3Array(osg::Array::Binding::BIND_PER_VERTEX, 4);
 		(*v)[0].set(xMin, yMax, zMin);
-		(*v)[1].set(xMin, yMin, zMax);
-		(*v)[2].set(xMax, yMax, zMin);
+		(*v)[1].set(xMin, yMin, zMin);
+		(*v)[2].set(xMax, yMax, zMax);
 		(*v)[3].set(xMax, yMin, zMin);
 		geom->setVertexArray(v);
 		geom->setNormalArray(norms);
 		bool quad = true;
-		int qindex = 0;
-
+		int qindex = -2;
+		//idx u       v
+		//[0] 0.0 0.5 0.0 0.5
+		//[1] 0.5 1.0 0.0 0.5  
+		//[2] 0.0 0.5 0.5 1.0
+		//[3] 0.5 1.0 0.5 1.0
+		//[4] 0.0 1.0 0.0 1.0
+		if (uMin == 0.0f) {
+			if (uMax == 0.5f) {
+				if ((vMin == 0.0f) && (vMax == 0.5f)) {
+					qindex = 0;
+				} else {
+					if ((vMin == 0.5f) && (vMax == 1.0f)) {
+						qindex = 2;
+					} else {
+						quad = false;
+						qindex = -1;
+					}
+				}
+			} else {
+				if ((uMax == 1.0f) && (vMin == 0.0f) && (vMax == 1.0f)) {
+					qindex = 4;
+				} else {
+					quad = false;
+					qindex = -1;
+				}
+			}
+		} else {
 		if (uMin == 0.5f) {
-			if (uMax != 1.0f) quad = false;
+				if (uMax == 1.0f) {
+					if ((vMin == 0.0f) && (vMax == 0.5f)) {
 			qindex = 1;//right
 		} else {
-			if (uMin != 0.0f) quad = false;
-			if (uMax != 0.5f) {
-				if ((uMax == 1.0f) && (vMin == 0.0f) && (vMax == 1.0f)) qindex = 4;
-				else quad = false;
+						if ((vMin == 0.5f) && (vMax == 1.0f)) {
+							qindex = 3;//right
+						} else {
+							quad = false;
+							qindex = -1;
 			}
 		}
-		if (vMin == 0.5f) {
-			if (vMax != 1.0f) quad = false;
-			qindex += 2; //top
+				} else {
+					quad = false;
+					qindex = -1;
+				}
+			} else {
+				quad = false;
+				qindex = -1;
 		}
-		else {
-			if (vMin != 0.0f) quad = false;
-			if ((vMax != 1.0f) && (qindex !=4)) quad = false;
 		}
-
 		if (quad) {
 			if (heightMap) geom->setVertexAttribArray(3, tcQuad[qindex]);
 			else geom->setTexCoordArray(0, tcQuad[qindex]);
@@ -207,10 +238,36 @@ public:
 		else geom->addPrimitiveSet(drwelemt.get());
 
 		geom->setStateSet(ss);
+#if DRAWCENTERSPHERES
+		if ((heightMap) && (zMin > zMax)) {
+			osg::BoundingSphere testSphere = geom->getBound();
+			osg::BoundingBox testBox =  geom->getBoundingBox();
+			osg::Vec3 pMin(xMin, yMin, zMin);
+			osg::Vec3 pMax(xMax, yMax, zMax);
+			osg::Vec3 pMid = (pMin + pMax) * 0.5f;
+			pMax.set(xMax, yMax, zMin);
+			float radius = (pMin - pMax).length() * 0.35355339059327376220042218105242f; //=sqrt(2)/4
+			//osg::Sphere* centerSp = new osg::Sphere(pMid, radius);
+			osg::Box* centerSp = new osg::Box(pMid, xMax - xMin, yMax-yMin, zMin - zMax);
+			osg::ShapeDrawable* cSp0Draw = new osg::ShapeDrawable(centerSp);
+			cSp0Draw->setColor(osg::Vec4(1.0, 0.0, 0.0, 1.0));
+			osg::StateSet* simple = new osg::StateSet();
+			osg::ref_ptr<osg::Program> program = new osg::Program;
+			simple->setAttributeAndModes(program.get());
+			cSp0Draw->setStateSet(simple);
+			osg::Geode* grp = new osg::Geode();
+			grp->addChild(geom);
+			grp->addDrawable(cSp0Draw);
+			return grp;
+		} else {
+			return geom;
+		}
+#else
 		return geom;
+#endif
 	}
 
-	osg::Node * createPagedLOD(bool heightMap, osg::StateSet *ss, bool v1, const std::string& urlBase, const std::string& urlTail, int level, int xTile, int yTile, float xMin, float xMax, float yMin, float yMax, float zMin, float zMax, float uMin, float uMax, float vMin, float vMax) const {
+	osg::Node* createPagedLOD(int pixels, bool heightMap, osg::StateSet* ss, bool v1, const std::string& urlBase, const std::string& urlTail, int level, int xTile, int yTile, float xMin, float xMax, float yMin, float yMax, float zMin, float zMax, float uMin, float uMax, float vMin, float vMax) const {
 		//if (level > 15) return createTile(heightMap, ss, xMin, xMax, yMin, yMax, zMin, zMax, uMin, uMax, vMin, vMax);
 		//if (level > 10) return createTile(heightMap, xMin, xMax, yMin, yMax, zMin, zMax, uMin, uMax, vMin, vMax);
 		osg::PagedLOD *lod = new osg::PagedLOD();
@@ -220,8 +277,9 @@ public:
 		lod->setCenter(osg::Vec3(0.5f * (xMin + xMax), 0.5f * (yMin + yMax), 0.0f ));
 		lod->setRadius(0.5f * sqrtf(((xMax - xMin) * (xMax - xMin)) + ((yMax - yMin) * (yMax - yMin)) ));
 
-		float rangeMax = 128.0f * 1.414f;
-		osg::Node *geode = createTile(heightMap, ss, xMin, xMax, yMin, yMax, zMin, zMax, uMin, uMax, vMin, vMax);
+		//float rangeMax = 128.0f * 1.414f;
+		float rangeMax = 1.414f * pixels * (xMax - xMin);
+		osg::Node *geode = createTile(heightMap, ss, xMin, xMax, yMin, yMax, zMin, zMax, uMin, uMax, vMin, vMax);//pagedLOD base level
 
 //#include <osg/ShapeDrawable>
 //		osg::Shape *sphere = new osg::Sphere(lod->getCenter(), lod->getRadius());//DEBUG
@@ -292,48 +350,89 @@ public:
 		}
 		return img;
 	}
-	bool imageMinMax(osg::Image* img, bool heightMap, unsigned int& RGBmax, unsigned int& RGBmin) const {
-		if (img) {//check for white images
-			bool pureWhite = img->isDataContiguous();
-			//pureWhite = false;
-			if (pureWhite) pureWhite = (((img->getPixelFormat() == GL_RGBA) || (img->getPixelFormat() == GL_RGB)) && (img->s() > 3));
-			if (pureWhite) {
-				const unsigned int* data = static_cast<const unsigned int*>(img->getDataPointer());
+	bool imageMinMax(osg::Image* img, bool getMinMax, unsigned int& RGBmax, unsigned int& RGBmin) const {
+		if (!img) return false;
+		bool solidColor = true;
 				if (img->getPixelFormat() == GL_RGB) {
-					for (int p = 0; p * sizeof(unsigned int) < img->getTotalSizeInBytes(); ++p) {
-						if (data[p] != 0xffffffff) {
-							pureWhite = false;
-							break;
+			unsigned char r, g, b;
+			for (osg::Image::DataIterator img_itr(img); img_itr.valid(); ++img_itr) {
+				const unsigned char* img_itr_data = img_itr.data();
+				for (unsigned int p = 0; p < img_itr.size(); p += 3) {
+					if (p != 0) {
+						if ((r == img_itr_data[p]) && (g == img_itr_data[p + 1]) && (b == img_itr_data[p + 2])) {}
+						else {
+							solidColor = false;
+							if (!getMinMax)	break;
+							unsigned int RGBheight = (img_itr_data[p] << 24) | (img_itr_data[p + 1] << 16) | (img_itr_data[p + 2] << 8);
+							if (RGBheight > RGBmax) RGBmax = RGBheight;//RGB0
+							if (RGBheight < RGBmin) RGBmin = RGBheight;
+						}
+					}
+					else {
+						r = img_itr_data[p];
+						g = img_itr_data[p + 1];
+						b = img_itr_data[p + 2];
+						if (getMinMax) RGBmax = RGBmin = (r << 24) | (g << 16) | (b << 8);
 						}
 					}
 				}
-				else {//GL_RGBA
-					unsigned int RGBcolor = 0;
-					for (int p = 0; p * sizeof(unsigned int) < img->getTotalSizeInBytes(); ++p) {
-						unsigned int RGBApixel = data[p];
-						unsigned int RGBpixel = data[p] & 0x00ffffff; //ABGR
-						if ((RGBApixel & 0xff000000) != 0) {//not transparent
-							if (RGBcolor != 0) {
-								if (RGBpixel != RGBcolor) {
-									pureWhite = false;//not solid color
-									//break;
-									if (!heightMap)	break;
-									unsigned int RGBheight = RGBpixel;
-									osg::swapBytes4((char*)&RGBheight);
+			return solidColor;
+		} 
+		if (img->getPixelFormat() == GL_RGBA) {//GL_RGBA
+			unsigned char r, g, b, a;
+			a = 0;
+			for (osg::Image::DataIterator img_itr(img); img_itr.valid(); ++img_itr) {
+				const unsigned char* img_itr_data = img_itr.data();
+				for (unsigned int p = 0; p < img_itr.size(); p += 4) {
+					if (img_itr_data[p + 3] != 0) {//not transparent
+						if (a != 0) {
+							if ((r == img_itr_data[p]) && (g == img_itr_data[p + 1]) && (b == img_itr_data[p + 2])) {
+							} else {
+								solidColor = false;
+								if (!getMinMax)	break;
+								unsigned int RGBheight = (img_itr_data[p] << 24) | (img_itr_data[p + 1] << 16) | (img_itr_data[p + 2] << 8) | img_itr_data[p + 3];
 									if (RGBheight > RGBmax) RGBmax = RGBheight;//RGB0
 									if (RGBheight < RGBmin) RGBmin = RGBheight;
 								}
+						} else {
+							r = img_itr_data[p];
+							g = img_itr_data[p + 1];
+							b = img_itr_data[p + 2];
+							a = img_itr_data[p + 3];
+							if (getMinMax) RGBmax = RGBmin = (r << 24) | (g << 16) | (b << 8) | a;
+						}
 							}
-							else {
-								RGBcolor = RGBpixel;
 							}
+						}
+			return solidColor;
+		}
+		//all other formats
+		osg::Vec4 fixColor(0, 0, 0, 0);
+		for (int s = 0; s < img->s(); ++s) {
+			for (int t = 0; t < img->t(); ++t) {
+				for (int r = 0; r < img->r(); ++r) {
+					osg::Vec4 color = img->getColor(s, t, r) * 255.0f;
+					if (color.a()) {//not fully transparant
+						if (fixColor.a() != 0.0f) {
+							if (fixColor != color) {
+								solidColor = false;
+								if (!getMinMax) {
+									return solidColor;
+									//s = img->s(); t = img->t(); r = img->r();//break all loops
+								}
+								unsigned int RGBheight = (((unsigned int)color.r()) << 24) | (((unsigned int)color.g()) << 16) | (((unsigned int)color.b()) << 8) | ((unsigned int)color.a());
+								if (RGBheight > RGBmax) RGBmax = RGBheight;//RGB0
+								if (RGBheight < RGBmin) RGBmin = RGBheight;
+							}
+						} else {
+							fixColor = color;
+							RGBmax = RGBmin = (((unsigned int)color.r()) << 24) | (((unsigned int)color.g()) << 16) | (((unsigned int)color.b()) << 8) | ((unsigned int)color.a());
 						}
 					}
 				}
 			}
-			return pureWhite;
 		}
-		return false;
+		return solidColor;
 	}
 	virtual ReadResult readGeodataNode(const std::string& fileName, const osgDB::ReaderWriter::Options* options) const {
 		//subFileName now stripped from ".wmts"
@@ -497,13 +596,15 @@ public:
 
 		osg::StateSet* ss = new osg::StateSet();
 		if (url2.length()) {//second texture url for luafile
-			osg::ref_ptr<osg::Image> img2 = getImage(url2, options);
+			osg::ref_ptr<osg::Image> img2 = getImage(url2, options);//arial photo
 			//todo check for white image...
 			if (img2.valid()) {
 				if (!img.valid() && pss.valid()) {//no valid height image
 					osg::Texture* tex = static_cast<osg::Texture*>(pss->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
-					osg::Image* pimg = tex ? tex->getImage(0) : NULL;
-					if (!pimg && options) {
+					osg::ref_ptr<osg::Image> pimg = tex ? tex->getImage(0) : NULL;
+// PIMAGE_IN_USERDATA - seems useless now?
+#if PIMAGE_IN_USERDATA
+					if (!pimg.valid() && options) {
 						// if (luaFile && heightMap) group->setUserData(img);
 						osg::observer_ptr<osg::Group> parent = options->getParentGroup();
 						if (parent.valid() && parent->getNumChildren() > 0) {
@@ -513,10 +614,11 @@ public:
 							}
 						}
 					}
-					if (pimg) {
+#endif
+					if (pimg.valid()) {
 						int s = pimg->s();
 						int t = pimg->t();
-						int r = pimg->r();
+						//int r = pimg->r();
 						if ((s > 8) && (t > 8)) {
 							GLenum pixelFormat = pimg->getPixelFormat();
 							GLenum type = pimg->getDataType();
@@ -525,12 +627,50 @@ public:
 							int t_offset = 0;
 							if ((nextYTile & 2) != 2) t_offset = t / 2;//CHECK!
 							//img->allocateImage(s / 2, t / 2, r, pixelFormat, type);
-							img = cropImage(s / 2, t/2, 1, s_offset, t_offset, 0, pimg);
+							img = cropImage(s / 2, t/2, 1, s_offset, t_offset, 0, pimg);//create cropped hightmap
 							bool pureWhite = imageMinMax(img, heightMap, RGBmax, RGBmin);
+							//img2 = img;//dbg show heightmap as color
+						}
+					} else { //parent has no image anymore (unref'ed after apply)
+						unsigned int myXtile = nextXTile / 2;
+						unsigned int myYtile = nextYTile / 2;
+						unsigned int myLevel = nextLevel - 1;
+						unsigned int pXtile = myXtile;
+						unsigned int pYtile = myYtile;
+						unsigned int pLevel = myLevel;
+						while (!pimg.valid() && pLevel > 0) {
+							pXtile /= 2;
+							pYtile /= 2;
+							pLevel -= 1;
+							std::stringstream argString;
+							argString << pLevel << " " << pXtile << " " << pYtile;
+							std::string luaFileName = subFileName.substr(0, subFileName.length() - 1);
+							url = luaFileName + "." + argString.str() + " 0.arg";
+							pimg = getImage(url, options);
+						}
+						if (pimg.valid()) {
+							int zoom = 1 << (myLevel - pLevel);
+							int s = pimg->s();
+							int t = pimg->t();
+							if (zoom > s) zoom = s;
+							int nwS = s / zoom;
+							int s_offset = nwS *(myXtile & (zoom - 1));
+							zoom = 1 << (myLevel - pLevel);
+							if (zoom > t) zoom = t;
+							int mask = zoom - 1;
+							int nwT = t / zoom;
+							int t_offset = nwT * (mask - (myYtile & mask));
+							img = cropImage(nwS, nwT, 1, s_offset, t_offset, 0, pimg);//create cropped hightmap
+							//if (myLevel == 15 && myXtile == 19880 && myYtile == 10992)  img2 = img;
+							bool pureWhite = imageMinMax(img, heightMap, RGBmax, RGBmin);
+							//if (zoom > 7)img2 = img;//dbg show heightmap as color
+							//if (myLevel > 14) img2 = img;//dbg show heightmap as color
 						}
 					}
+					//if(nextLevel > 15) img2 = img;//dbg show heightmap as color
 				}
 				osg::Texture2D* Arial = new osg::Texture2D(img2.get());
+				//osg::Texture2D* Arial = new osg::Texture2D(img.get());//dbg show heightmap
 				Arial->setResizeNonPowerOfTwoHint(false);
 				Arial->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);//osg::Texture::LINEAR_MIPMAP_LINEAR
 				//Arial->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);default
@@ -555,7 +695,7 @@ public:
 			if ((nextXTile & 2) == 2) uMin = uMid;
 			else uMax = uMid;
 
-			osg::Node *tile = createTile(heightMap, pss.get(), xMin, xMax, yMin, yMax, zMin, zMax, uMin, uMax, vMin, vMax);
+			osg::Node *tile = createTile(heightMap, pss.get(), xMin, xMax, yMin, yMax, zMin, zMax, uMin, uMax, vMin, vMax);//Child has no valid image - end lod pyramid here
 			if (mt) {
 				mt->addChild(tile);
 				return mt;
@@ -575,16 +715,23 @@ public:
 		tex->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
 		ss->setTextureAttributeAndModes(0, tex, osg::StateAttribute::ON);
 		if (nextLevel > maxLevel) {
-#if 0
-			osg::Node *tile = createTile(heightMap, ss, xMin, xMax, yMin, yMax, zMin, zMax, uMin, uMax, vMin, vMax);
+			osg::Node* tile;
+			if (img->s() < 64) {
+#if DRAWCENTERSPHERES
+				//switch zMin, zMax
+				tile = createTile(heightMap, ss, xMin, xMax, yMin, yMax, zMax, zMin, uMin, uMax, vMin, vMax);
 #else
+				tile = createTile(heightMap, ss, xMin, xMax, yMin, yMax, zMin, zMax, uMin, uMax, vMin, vMax);
+#endif
+			} else {
 			// increase final heightMap level to 2x2 tile
-			// should(!) not help - for testing only...
-			osg::Group* tile = new osg::Group;
+				osg::Group* tilegrp = new osg::Group;
+				tile = tilegrp;
 			tile->setStateSet(ss);
 			ss = NULL;
 			{
 				int numRows = 2;
+					if (img->s() > 128) numRows = 4;
 				int numCols = numRows;
 				float yWidth = (yMax - yMin) / (float)numRows;
 				float xWidth = (xMax - xMin) / (float)numCols;
@@ -600,12 +747,17 @@ public:
 						float xEnd = xStart + xWidth;
 						float uStart = uMin + col * uWidth;
 						float uEnd = uStart + uWidth;
-						osg::Node* SUBtile =createTile(heightMap, ss, xStart, xEnd, yStart, yEnd, zMin, zMax, uStart, uEnd, vStart, vEnd);
-						tile->addChild(SUBtile);
+#if DRAWCENTERSPHERES
+							//switch zMin, zMax
+							osg::Node* SUBtile =createTile(heightMap, ss, xStart, xEnd, yStart, yEnd, zMax, zMin, uStart, uEnd, vStart, vEnd);
+#else
+							osg::Node* SUBtile = createTile(heightMap, ss, xStart, xEnd, yStart, yEnd, zMin, zMax, uStart, uEnd, vStart, vEnd);
+#endif
+							tilegrp->addChild(SUBtile);
+						}
 					}
 				}
 			}
-#endif
 #if NEARPIX
 			//debug option - don't interpolate
 			tex->setFilter(osg::Texture::MIN_FILTER, osg::Texture::NEAREST);//osg::Texture::LINEAR_MIPMAP_LINEAR
@@ -619,12 +771,13 @@ public:
 		}
 		osg::Group *group = mt ? mt : new osg::Group();
 		//group->setStateSet(ss);
-		group->addChild(createPagedLOD(heightMap, ss, v1, subFileName, fileExt, nextLevel, nextXTile    , nextYTile + 1, xMin, xMid, yMin, yMid, zMin, zMax, uMin, uMid, vMin, vMid));//left bottom
-		group->addChild(createPagedLOD(heightMap, ss, v1, subFileName, fileExt, nextLevel, nextXTile + 1, nextYTile + 1, xMid, xMax, yMin, yMid, zMin, zMax, uMid, uMax, vMin, vMid));//right bottom
-		group->addChild(createPagedLOD(heightMap, ss, v1, subFileName, fileExt, nextLevel, nextXTile    , nextYTile    , xMin, xMid, yMid, yMax, zMin, zMax, uMin, uMid, vMid, vMax));//left top
-		group->addChild(createPagedLOD(heightMap, ss, v1, subFileName, fileExt, nextLevel, nextXTile + 1, nextYTile    , xMid, xMax, yMid, yMax, zMin, zMax, uMid, uMax, vMid, vMax));//right top
-
+		group->addChild(createPagedLOD(img->s(), heightMap, ss, v1, subFileName, fileExt, nextLevel, nextXTile    , nextYTile + 1, xMin, xMid, yMin, yMid, zMin, zMax, uMin, uMid, vMin, vMid));//left bottom
+		group->addChild(createPagedLOD(img->s(), heightMap, ss, v1, subFileName, fileExt, nextLevel, nextXTile + 1, nextYTile + 1, xMid, xMax, yMin, yMid, zMin, zMax, uMid, uMax, vMin, vMid));//right bottom
+		group->addChild(createPagedLOD(img->s(), heightMap, ss, v1, subFileName, fileExt, nextLevel, nextXTile    , nextYTile    , xMin, xMid, yMid, yMax, zMin, zMax, uMin, uMid, vMid, vMax));//left top
+		group->addChild(createPagedLOD(img->s(), heightMap, ss, v1, subFileName, fileExt, nextLevel, nextXTile + 1, nextYTile    , xMid, xMax, yMid, yMax, zMin, zMax, uMid, uMax, vMid, vMax));//right top
+#if PIMAGE_IN_USERDATA
 		if (luaFile && heightMap) group->setUserData(img);//TODO FREE
+#endif
 		return group;
 	}
 
